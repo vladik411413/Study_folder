@@ -1,3 +1,5 @@
+#https://github.com/vladik411413/Study_folder.git
+
 import sqlite3
 
 class SqlConnect:
