@@ -1,10 +1,10 @@
-int s = 60;
-int n = 2*s+1;
+
+int n;
 double poryadok = 4; //четвертый порядок точности eval
 
 
 double newton_difference(int n1,int n2,double* x0, double* y0);
-double evalue(double* x0,double* y0,int n1,int n2,int poryadok,double x);
+double y2p_evalue(double* x0,double* y0,int n1,int poryadok,double x);
 double maxim(double* y1,double* y2,int n);
 double fact(int k);
 
@@ -16,10 +16,6 @@ void plot_phys(){
 	TGraph *blue = new TGraph();
   TGraph *red = new TGraph();
 	double dx,dy,a,b;
-  a = -0.8;
-  b = 0.8;
-  double x[n];
-  double y[n];
   double xpol[n];
   double ypol[n];  
   double yp_left_0[n];
@@ -27,26 +23,52 @@ void plot_phys(){
   double blue_mas[n];
   double black_mas[n];
   double red_mas[n];
-  int i;
+  double Real,CalcBlue,CalcRed,t1,m1,t2,m2,t3,m3,CalcBlack;
+  int i,k,black_order,blue_order,red_order;
+  blue_order = 1;
+  red_order = 2;
+  black_order = 4;
+  char buf[30];
+  a =-0.8;
+  b =0.8;
+  for(n = 50;n < 200;n++){
+    double *x = new double[n];
+    double *y = new double[n];
+    for(i=0;i<n;i++){
+      x[i] = a+((i+1)*(b-a)/n);
+      y[i] = exp(-x[i])*sin(x[i]);
+    }
 
-  for(i=0;i<n;i++){
-    x[i] = a+((i+1)*(b-a)/n);
-    y[i] = exp(-x[i])*sin(x[i]);
+    for(i=0;i<n-9;i++){
+      Real = -2*exp(-x[i])*cos(x[i]); //Real 2 pr
+      CalcBlue = y2p_evalue(x,y,i,blue_order,x[i]);
+      CalcRed = y2p_evalue(x,y,i,red_order,x[i]);
+      CalcBlack = y2p_evalue(x,y,i,black_order,x[i]);
+
+      t1 = Real-CalcBlue;
+      if(t1<0) t1 = -t1;
+      if(i==0) m1 = t1;
+      if(t1>m1) m1 = t1;
+      
+      t2 = Real-CalcRed;
+      if(t2<0) t2 = -t2;
+      if(i==0) m2 = t2;
+      if(t2>m2) m2 = t2;
+
+      t3 = Real-CalcBlack;
+      if(t3<0) t3 = -t3;
+      if(i==0) m3 = t3;
+      if(t3>m3) m3 = t3;
+    }
+    delete [] x;
+    delete [] y;
+    k = blue -> GetN();
+    blue -> SetPoint(k,log10(n),log10(m1));
+    red -> SetPoint(k,log10(n),log10(m2)); 
+    black -> SetPoint(k,log10(n),log10(m3)); 
   }
 
-  for(i=0;i<n-6;i++){
-    yp_left_0[i] = exp(-x[i])*(cos(x[i])-sin(x[i]));
-    blue_mas[i] = -2*exp(-x[i])*cos(x[i]); //Real 2 pr
-    black_mas[i] = evalue(x,y,i,i+2,4,x[i]);
-    red_mas[i] = 2*newton_difference(i,i+2,x,y);
-  }
 
-  double tempx,tempy;
-	for(i=0;i<n-6;i++){
-  blue -> SetPoint(i,x[i],blue_mas[i]);
-  black -> SetPoint(i,x[i],black_mas[i]);
-  red -> SetPoint(i,x[i],red_mas[i]); 
-  } 
 	//TAxis *axis = gr1->GetXaxis();
 	//axis->SetLimits(0.,5.);                 // along X
 	//gr->GetHistogram()->SemMaximum(80);   // along          
@@ -56,17 +78,27 @@ void plot_phys(){
 	black -> SetMarkerColor(1);
 	black -> SetMarkerStyle(1);
 	TMultiGraph *mg = new TMultiGraph();
-	mg -> SetTitle(Form("Curve LR1"));
+	mg -> SetTitle(Form("Accuracy dependence from number of points, n;log_{10}(n);log_{10}(err)"));
 	blue->SetLineColor(kBlue);
 	blue -> SetMarkerStyle(1);
   blue -> SetMarkerColor(4);
 	red -> SetMarkerColor(2);
 	red -> SetMarkerStyle(1);
   red->SetLineColor(kRed);
+  
+
 	mg->Add(blue,"APL");
-	mg->Add(black,"PL");
   mg->Add(red,"PL");
+  mg->Add(black,"PL");
 	mg->Draw("ap");
+  TLegend *leg = new TLegend(0.1, 0.1, 0.3, 0.3);
+  snprintf(buf,sizeof(buf),"%d order accuracy",blue_order);
+	leg->AddEntry(blue,buf,"PL");
+  snprintf(buf,sizeof(buf),"%d order accuracy",red_order);
+  leg->AddEntry(red,buf,"PL");
+  snprintf(buf,sizeof(buf),"%d order accuracy",black_order);
+  leg->AddEntry(black,buf,"PL");
+	leg->Draw();
 	//TLegend *leg = new TLegend(0.1, 0.7, 0.3, 0.9);
 	//leg->SetHeader("Curve");
 	//leg->A(func,"#scale[0.6ale[0.6]{y = cos(#frac{e^{x/3}}{10})}","PL");
@@ -76,11 +108,12 @@ void plot_phys(){
 
 double newton_difference(int n1,int n2,double* x0, double* y0){
 int i;
-double y[n2-n1+1];
-double x[n2-n1+1];
+double t;
+double *x = new double[n2-n1+1];
+double *y = new double[n2-n1+1];
 for(i=0;i<n2-n1+1;i++) y[i] = y0[n1+i];
 for(i=0;i<n2-n1+1;i++) x[i] = x0[n1+i];
-double yp[n2-n1];
+double *yp = new double[n2-n1];
 for(int j = 0;n2-n1-j>0;j++){
 for(i=0;i<n2-n1-j;i++) {
   yp[i] = (y[i+1]-y[i])/((x[i+1+j]-x[i]));
@@ -89,33 +122,39 @@ for(i=0;i<n2-n1-j;i++) {
 for(i=0;i<n2-n1-j;i++) y[i] = yp[i];
 
 }
-return yp[0];
+t=yp[0];
+delete [] x;
+delete [] y;
+delete [] yp;
+return t;
 }
-double evalue(double* x0,double* y0,int n1,int n2,int poryadok,double x){
+double y2p_evalue(double* x0,double* y0,int n1,int poryadok,double x){
 double sum_m,pr,sum_k,sum_j;
-double psi[n2-n1+1];
+//double psi[n2-n1+1];
 int i,k,m,j,Flag;
-sum_k = newton_difference(n1,n2,x0,y0);
-for(i=0;i<n2-n1+1;i++) psi[i] = x0[n1+i]-x;
-sum_k = newton_difference(n1,n2,x0,y0)*fact(n2-n1);
-for(k=1;k<poryadok;k++){
+//for(i=0;i<n2-n1+1;i++) psi[i] = x-x0[n1+i];
+//sum_k = newton_difference(n1,n2,x0,y0)*fact(n2-n1);
+sum_k=0;
+for(k=2;k<poryadok+3;k++){
   sum_m = 0;
   for(m = 0;m < k;m++){
     sum_j = 0;
     for(j = 0;j < k;j++){
-      pr = 1;
-      Flag = 0;
-      for(i = 0;i < k;i++){
-        if((i-j)*(i-m)!=0){
-          Flag=1;
-          pr*=psi[i];
+      if(m!=j){
+        pr = 1;
+        for(i = 0;i < k;i++){
+          if((i-j)*(i-m)!=0){
+            pr*=x-x0[n1+i];
+
+          }
         }
+       sum_j+=pr;
       }
-      if(Flag) sum_j+=pr;
     }
   sum_m+= sum_j;
   }
-  sum_k+= sum_m * newton_difference(n1,n2+k,x0,y0);
+  //cout << "sum_m " << sum_m << " k "<< k <<" poryadok "<<poryadok<<"\n";	
+  sum_k+= sum_m * newton_difference(n1,n1+k,x0,y0);
 }
 
 
